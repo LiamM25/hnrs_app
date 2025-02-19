@@ -43,7 +43,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Text(
-                'SkinScan',
+                'Skin Scan',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'AI-powered skin lesion analysis',
+                'AI-powered analysis',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey,

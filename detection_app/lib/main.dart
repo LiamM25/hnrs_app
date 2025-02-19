@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'screens/home_page.dart';
 import 'screens/results_page.dart';
 import 'screens/disclaimer_page.dart';
+import 'services/tflite_service.dart';  // ✅ Import the TFLite service
 
-void main() {
-  runApp(SkinCancerDetectionApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // ✅ Required for async in main
+  await TFLiteService().loadModel();          // ✅ Load TFLite model before app runs
+  runApp(const SkinCancerDetectionApp());
 }
 
 class SkinCancerDetectionApp extends StatelessWidget {
@@ -14,7 +17,7 @@ class SkinCancerDetectionApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: MainPage(),
+      home: const MainPage(),
     );
   }
 }
@@ -39,6 +42,12 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  @override
+  void dispose() {
+    TFLiteService().closeModel(); // ✅ Optional: Close model when app is disposed
+    super.dispose();
   }
 
   @override
