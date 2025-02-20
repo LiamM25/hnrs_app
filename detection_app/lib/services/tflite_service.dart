@@ -16,12 +16,17 @@ class TFLiteService {
     }
   }
 
-  Future<List<dynamic>> runModelOnImage(dynamic input) async {
-    var output = List.filled(1, 0).reshape([1]);
-    _interpreter.run(input, output);
-    print('Inference result: $output');
-    return output.cast<dynamic>();
+Future<List<dynamic>> runModelOnImage(List<List<List<List<int>>>> input) async {
+  try {
+    final output = List.generate(1, (_) => List.filled(7, 0.0)); // Adjusted to [1, 7]
+    _interpreter.run(input, output); // Running inference
+    print('🚀 Inference output: $output');
+    return output[0]; // Return the first element which contains the predictions
+  } catch (e) {
+    print('❌ Error during inference: $e');
+    rethrow;
   }
+}
 
   void closeModel() {
     _interpreter.close();

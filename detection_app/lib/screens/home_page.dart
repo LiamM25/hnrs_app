@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/custom_button.dart';
+import '../services/tflite_service.dart';
+import 'package:image/image.dart' as img;
+import 'dart:typed_data';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,12 +17,88 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  List<Map<String, dynamic>>? _predictions;
+  bool _isLoading = false;
+
+  final List<String> _labels = [
+    'Melanocytic nevi',
+    'Melanoma',
+    'Benign keratosis-like lesions',
+    'Basal cell carcinoma',
+    'Actinic keratoses',
+    'Vascular lesions',
+    'Dermatofibroma'
+  ];
+
+  Future<List<List<List<List<int>>>>> _preprocessImage(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    img.Image? image = img.decodeImage(bytes);
+
+    if (image == null) {
+      throw Exception('Failed to decode image');
+    }
+
+    img.Image resizedImage = img.copyResize(image, width: 32, height: 32);
+
+    final input = List.generate(
+      1,
+      (_) => List.generate(
+        32,
+        (y) => List.generate(
+          32,
+          (x) {
+            final pixel = resizedImage.getPixel(x, y);
+            return [
+              pixel.r.toInt(),
+              pixel.g.toInt(),
+              pixel.b.toInt(),
+            ];
+          },
+        ),
+      ),
+    );
+
+    return input;
+  }
 
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       setState(() {
         _selectedImage = File(pickedFile.path);
+      });
+      await _classifyImage(_selectedImage!);
+    }
+  }
+
+  Future<void> _classifyImage(File image) async {
+    print('🔄 Starting classification...');
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final preprocessedImage = await _preprocessImage(image);
+      print('🔍 Preprocessed image shape: ${preprocessedImage.length}');
+      final rawPredictions =
+          await TFLiteService().runModelOnImage(preprocessedImage);
+      print('🚀 Inference output: $rawPredictions');
+
+      final predictions = List.generate(
+        rawPredictions.length,
+        (index) => {
+          "label": _labels[index],
+          "confidence": rawPredictions[index],
+        },
+      );
+
+      setState(() {
+        _predictions = predictions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Classification error: $e');
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -91,6 +170,21 @@ class _HomePageState extends State<HomePage> {
                       ),
               ),
               const SizedBox(height: 30),
+              if (_isLoading)
+                const CircularProgressIndicator()
+              else
+                _predictions != null && _predictions!.isNotEmpty
+                    ? Column(
+                        children: _predictions!
+                            .map((res) => Text(
+                                  "${res["label"]}: ${(res["confidence"] * 100).toStringAsFixed(2)}%",
+                                  style: const TextStyle(
+                                      fontSize: 16, color: Colors.black),
+                                ))
+                            .toList(),
+                      )
+                    : const Text('No predictions yet.'),
+              const SizedBox(height: 30),
               CustomButton(
                 label: 'Upload Image',
                 onPressed: _pickImage,
@@ -100,9 +194,10 @@ class _HomePageState extends State<HomePage> {
                 label: 'Classify Now',
                 onPressed: _selectedImage != null
                     ? () {
-                        // To be implemented: Trigger classification
+                        print('🚀 Classify button pressed');
+                        _classifyImage(_selectedImage!);
                       }
-                    : () {}, // Default empty function to satisfy non-nullable VoidCallback
+                    : () {},
               ),
               const SizedBox(height: 30),
               Row(
@@ -110,7 +205,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   GestureDetector(
                     onTap: () {
-                      DefaultTabController.of(context).animateTo(1);
+                      DefaultTabController.of(context)?.animateTo(1);
                     },
                     child: const Text(
                       'View Results',
@@ -124,7 +219,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(width: 20),
                   GestureDetector(
                     onTap: () {
-                      DefaultTabController.of(context).animateTo(2);
+                      DefaultTabController.of(context)?.animateTo(2);
                     },
                     child: const Text(
                       'More Info',
