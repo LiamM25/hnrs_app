@@ -1,11 +1,9 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/custom_button.dart';
 import '../services/tflite_service.dart';
 import 'package:image/image.dart' as img;
-import 'dart:typed_data';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,7 +15,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
-  List<Map<String, dynamic>>? _predictions;
+  Map<String, dynamic>? _topPrediction;
+  List<Map<String, dynamic>>? _allPredictions;
   bool _isLoading = false;
 
   final List<String> _labels = [
@@ -29,6 +28,16 @@ class _HomePageState extends State<HomePage> {
     'Vascular lesions',
     'Dermatofibroma'
   ];
+
+  String _interpretPrediction(String label) {
+    if (label == 'Melanoma' || label == 'Basal cell carcinoma') {
+      return 'High risk of cancerous lesion. It is strongly advised to consult a doctor immediately.';
+    } else if (label == 'Actinic keratoses') {
+      return 'Possible pre-cancerous lesion. A medical consultation is recommended.';
+    } else {
+      return 'The lesion appears non-cancerous, but regular monitoring is suggested. If you have concerns, consult a doctor.';
+    }
+  }
 
   Future<List<List<List<List<int>>>>> _preprocessImage(File imageFile) async {
     final bytes = await imageFile.readAsBytes();
@@ -72,16 +81,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _classifyImage(File image) async {
-    print('🔄 Starting classification...');
     setState(() {
       _isLoading = true;
     });
     try {
       final preprocessedImage = await _preprocessImage(image);
-      print('🔍 Preprocessed image shape: ${preprocessedImage.length}');
       final rawPredictions =
           await TFLiteService().runModelOnImage(preprocessedImage);
-      print('🚀 Inference output: $rawPredictions');
 
       final predictions = List.generate(
         rawPredictions.length,
@@ -91,16 +97,45 @@ class _HomePageState extends State<HomePage> {
         },
       );
 
+      predictions.sort((a, b) =>
+          (b['confidence'] as double).compareTo(a['confidence'] as double));
+
       setState(() {
-        _predictions = predictions;
+        _topPrediction = predictions.first;
+        _allPredictions = predictions;
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ Classification error: $e');
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  void _showMoreInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Detailed Results'),
+        content: _allPredictions != null
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _allPredictions!
+                    .map(
+                      (res) => Text(
+                          "${res["label"]}: ${(res["confidence"] * 100).toStringAsFixed(2)}%"),
+                    )
+                    .toList(),
+              )
+            : const Text('No additional data available.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -122,7 +157,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Text(
-                'Skin Scan',
+                'Skin Scanner',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -170,68 +205,41 @@ class _HomePageState extends State<HomePage> {
                       ),
               ),
               const SizedBox(height: 30),
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                _predictions != null && _predictions!.isNotEmpty
-                    ? Column(
-                        children: _predictions!
-                            .map((res) => Text(
-                                  "${res["label"]}: ${(res["confidence"] * 100).toStringAsFixed(2)}%",
-                                  style: const TextStyle(
-                                      fontSize: 16, color: Colors.black),
-                                ))
-                            .toList(),
-                      )
-                    : const Text('No predictions yet.'),
-              const SizedBox(height: 30),
               CustomButton(
                 label: 'Upload Image',
                 onPressed: _pickImage,
               ),
-              const SizedBox(height: 15),
-              CustomButton(
-                label: 'Classify Now',
-                onPressed: _selectedImage != null
-                    ? () {
-                        print('🚀 Classify button pressed');
-                        _classifyImage(_selectedImage!);
-                      }
-                    : () {},
-              ),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      DefaultTabController.of(context)?.animateTo(1);
-                    },
-                    child: const Text(
-                      'View Results',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF37a4ea),
-                        decoration: TextDecoration.underline,
-                      ),
+              const SizedBox(height: 20),
+              if (_isLoading)
+                const CircularProgressIndicator()
+              else if (_topPrediction != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Result: ${_topPrediction!["label"]}",
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  GestureDetector(
-                    onTap: () {
-                      DefaultTabController.of(context)?.animateTo(2);
-                    },
-                    child: const Text(
-                      'More Info',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF37a4ea),
-                        decoration: TextDecoration.underline,
-                      ),
+                    Text(
+                      "Confidence: ${( (_topPrediction!["confidence"] ?? 0.0) * 100).toStringAsFixed(2)}%",
+                      style: const TextStyle(fontSize: 16),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _interpretPrediction(_topPrediction!["label"]),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16, color: Colors.red),
+                    ),
+                    const SizedBox(height: 15),
+                    CustomButton(
+                      label: 'More Info',
+                      onPressed: _showMoreInfoDialog,
+                    ),
+                  ],
+                )
+              else
+                const Text('No predictions yet.'),
             ],
           ),
         ),

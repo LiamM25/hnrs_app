@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'screens/home_page.dart';
-import 'screens/results_page.dart';
 import 'screens/disclaimer_page.dart';
-import 'services/tflite_service.dart';  // ✅ Import the TFLite service
+import 'services/tflite_service.dart';  
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ✅ Required for async in main
-  await TFLiteService().loadModel();          // ✅ Load TFLite model before app runs
+  WidgetsFlutterBinding.ensureInitialized(); 
+  await TFLiteService().loadModel();          
   runApp(const SkinCancerDetectionApp());
 }
 
@@ -34,7 +33,6 @@ class _MainPageState extends State<MainPage> {
 
   static const List<Widget> _pages = <Widget>[
     HomePage(),
-    ResultsPage(),
     DisclaimerPage(),
   ];
 
@@ -46,7 +44,7 @@ class _MainPageState extends State<MainPage> {
 
   @override
   void dispose() {
-    TFLiteService().closeModel(); // ✅ Optional: Close model when app is disposed
+    TFLiteService().closeModel(); 
     super.dispose();
   }
 
@@ -63,7 +61,6 @@ class _MainPageState extends State<MainPage> {
         showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.insights), label: 'Results'),
           BottomNavigationBarItem(icon: Icon(Icons.info), label: 'Disclaimer'),
         ],
       ),
