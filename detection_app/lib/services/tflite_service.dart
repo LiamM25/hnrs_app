@@ -18,7 +18,7 @@ class TFLiteService {
 
 Future<List<dynamic>> runModelOnImage(List<List<List<List<int>>>> input) async {
   try {
-    final output = List.generate(1, (_) => List.filled(7, 0.0)); // Adjusted to [1, 7]
+    final output = List.generate(1, (_) => List.filled(7, 0.0));
     _interpreter.run(input, output); // Running inference
     print('Inference output: $output');
     return output[0]; // Return the first element which contains the predictions
